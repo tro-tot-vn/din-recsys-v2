@@ -56,7 +56,7 @@ class Config:
     USER_REG_WEIGHT = 0.01   # L2 regularization weight
     
     # ============= TRAINING =============
-    BATCH_SIZE = 512
+    BATCH_SIZE = 256
     EPOCHS = 20
     LEARNING_RATE = 1e-3
     WEIGHT_DECAY = 1e-5
