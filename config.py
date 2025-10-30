@@ -48,6 +48,13 @@ class Config:
     MLP_HIDDEN = [128, 64]
     DROPOUT = 0.3
     
+    # User profile embedding dimensions
+    USER_AGE_DIM = 16        # 4 age groups -> 16 dims
+    USER_OCC_DIM = 8         # 2 occupations -> 8 dims
+    USER_LOC_DIM = 32        # ~50 districts -> 32 dims
+    USER_COMPRESSED_DIM = 16 # Final compressed user vector
+    USER_REG_WEIGHT = 0.01   # L2 regularization weight
+    
     # ============= TRAINING =============
     BATCH_SIZE = 512
     EPOCHS = 20

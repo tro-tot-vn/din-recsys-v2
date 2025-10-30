@@ -52,19 +52,20 @@ class Trainer:
             batch = [t.to(self.device) for t in batch]
             hdist, hprice, harea, mask, cdist, cprice, carea, age, occ, loc, labels = batch
             
-            logits = self.model(hdist, hprice, harea, mask, cdist, cprice, carea, age, occ, loc)
-            loss = self.criterion(logits, labels)
+            logits, reg_loss = self.model(hdist, hprice, harea, mask, cdist, cprice, carea, age, occ, loc)
+            bce_loss = self.criterion(logits, labels)
+            total_loss = bce_loss + self.config.USER_REG_WEIGHT * reg_loss
             
             self.optimizer.zero_grad()
-            loss.backward()
+            total_loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.MAX_GRAD_NORM)
             self.optimizer.step()
             
-            losses.append(loss.item())
+            losses.append(total_loss.item())
             y_true.append(labels.cpu().numpy())
             y_pred.append(torch.sigmoid(logits).detach().cpu().numpy())
             
-            pbar.set_postfix({"loss": f"{loss.item():.4f}"})
+            pbar.set_postfix({"loss": f"{total_loss.item():.4f}"})
         
         avg_loss = np.mean(losses)
         y_true = np.concatenate(y_true)
@@ -83,7 +84,7 @@ class Trainer:
             batch = [t.to(self.device) for t in batch]
             hdist, hprice, harea, mask, cdist, cprice, carea, age, occ, loc, labels = batch
             
-            logits = self.model(hdist, hprice, harea, mask, cdist, cprice, carea, age, occ, loc)
+            logits, _ = self.model(hdist, hprice, harea, mask, cdist, cprice, carea, age, occ, loc)
             loss = self.criterion(logits, labels)
             
             losses.append(loss.item())

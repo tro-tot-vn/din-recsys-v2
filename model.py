@@ -17,10 +17,18 @@ class DINModel(nn.Module):
         self.emb_price = nn.Embedding(n_prices, config.EMBED_DIM, padding_idx=0)
         self.emb_area = nn.Embedding(n_areas, config.EMBED_DIM, padding_idx=0)
         
-        # User profile embeddings
-        self.emb_age = nn.Embedding(n_ages, config.EMBED_DIM, padding_idx=0)
-        self.emb_occ = nn.Embedding(n_occupations, config.EMBED_DIM, padding_idx=0)
-        self.emb_loc = nn.Embedding(n_districts, config.EMBED_DIM, padding_idx=0)
+        # User profile embeddings (smaller dimensions)
+        self.emb_age = nn.Embedding(n_ages, config.USER_AGE_DIM, padding_idx=0)
+        self.emb_occ = nn.Embedding(n_occupations, config.USER_OCC_DIM, padding_idx=0)
+        self.emb_loc = nn.Embedding(n_districts, config.USER_LOC_DIM, padding_idx=0)
+        
+        # User profile compression MLP
+        self.user_mlp = nn.Sequential(
+            nn.Linear(config.USER_AGE_DIM + config.USER_OCC_DIM + config.USER_LOC_DIM, 32),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(32, config.USER_COMPRESSED_DIM)
+        )
         
         # Attention network
         attn_layers = []
@@ -33,7 +41,7 @@ class DINModel(nn.Module):
         
         # MLP for final prediction
         mlp_layers = []
-        in_dim = config.EMBED_DIM * 3  # user_interest + candidate + profile
+        in_dim = config.EMBED_DIM * 2 + config.USER_COMPRESSED_DIM  # user_interest(64) + candidate(64) + profile(16) = 144
         for h in config.MLP_HIDDEN:
             mlp_layers += [nn.Linear(in_dim, h), nn.PReLU(), nn.Dropout(config.DROPOUT)]
             in_dim = h
@@ -45,8 +53,24 @@ class DINModel(nn.Module):
         return self.emb_dist(dist) + self.emb_price(price) + self.emb_area(area)
     
     def embed_profile(self, age, occ, loc):
-        """Embed user profile"""
-        return self.emb_age(age) + self.emb_occ(occ) + self.emb_loc(loc)
+        """Embed user profile with concat + MLP compression"""
+        age_emb = self.emb_age(age)      # [B, 16]
+        occ_emb = self.emb_occ(occ)      # [B, 8]
+        loc_emb = self.emb_loc(loc)      # [B, 32]
+        
+        # Concat and compress
+        profile_concat = torch.cat([age_emb, occ_emb, loc_emb], dim=-1)  # [B, 56]
+        profile_compressed = self.user_mlp(profile_concat)  # [B, 16]
+        
+        return profile_compressed
+    
+    def get_user_reg_loss(self):
+        """L2 regularization on user embeddings"""
+        return (
+            torch.sum(self.emb_age.weight ** 2) +
+            torch.sum(self.emb_occ.weight ** 2) +
+            torch.sum(self.emb_loc.weight ** 2)
+        )
     
     def forward(self, hist_dist, hist_price, hist_area, mask, 
                 cand_dist, cand_price, cand_area, age, occ, loc):
@@ -72,7 +96,7 @@ class DINModel(nn.Module):
         cand_expand = cand_emb.unsqueeze(1).expand(-1, T, -1)  # [B,T,D]
         attn_input = torch.cat([hist_emb, cand_expand, hist_emb * cand_expand], dim=-1)  # [B,T,3D]
         attn_scores = self.attention(attn_input).squeeze(-1)  # [B,T]
-        attn_scores = attn_scores.masked_fill(mask == 0, 0)
+        attn_scores = attn_scores.masked_fill(mask == 0, -1e9)
         attn_weights = torch.relu(attn_scores).unsqueeze(-1)  # [B,T,1]
         
         # Weighted sum -> user interest
@@ -82,4 +106,7 @@ class DINModel(nn.Module):
         mlp_input = torch.cat([user_interest, cand_emb, profile_emb], dim=-1)  # [B,3D]
         logits = self.mlp(mlp_input).squeeze(-1)  # [B]
         
-        return logits
+        # Regularization loss
+        reg_loss = self.get_user_reg_loss()
+        
+        return logits, reg_loss
