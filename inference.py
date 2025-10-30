@@ -133,7 +133,7 @@ loc = torch.tensor([loc_id])
 # 5️⃣ Predict CTR
 # ===============================
 with torch.no_grad():
-    logit = model(hdist, hprice, harea, mask, cdist, cprice, carea, age, occ, loc)
+    logit, _ = model(hdist, hprice, harea, mask, cdist, cprice, carea, age, occ, loc)
     prob = torch.sigmoid(logit).item()
 
 print(f"\nPredicted click probability: {prob:.3f}")
@@ -149,7 +149,7 @@ with torch.no_grad():
     cand_expand = cand_e.unsqueeze(1).expand(-1, T, -1)
     att_in = torch.cat([hist_e, cand_expand, hist_e * cand_expand], dim=-1)
     w = model.attention(att_in).squeeze(-1)
-    w = w.masked_fill(mask == 0, 0)
+    w = w.masked_fill(mask == 0, -1e9)
     w = torch.relu(w).squeeze(0).cpu().numpy()
 
 

@@ -46,15 +46,22 @@ class Config:
     EMBED_DIM = 64
     ATTN_HIDDEN = [80, 40]
     MLP_HIDDEN = [128, 64]
-    DROPOUT = 0.3
+    DROPOUT = 0.2
+    
+    # User profile embedding dimensions
+    USER_AGE_DIM = 16        # 4 age groups -> 16 dims
+    USER_OCC_DIM = 8         # 2 occupations -> 8 dims
+    USER_LOC_DIM = 32        # ~50 districts -> 32 dims
+    USER_COMPRESSED_DIM = 16 # Final compressed user vector
+    USER_REG_WEIGHT = 0.01   # L2 regularization weight
     
     # ============= TRAINING =============
-    BATCH_SIZE = 512
+    BATCH_SIZE = 256
     EPOCHS = 20
     LEARNING_RATE = 1e-3
     WEIGHT_DECAY = 1e-5
     LR_DECAY_FACTOR = 0.9
-    LR_DECAY_STEP = 2
+    LR_DECAY_STEP = 3
     MAX_GRAD_NORM = 5.0
     EARLY_STOP_PATIENCE = 5
     
